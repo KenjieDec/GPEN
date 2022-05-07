@@ -19,7 +19,7 @@ _<sup>2</sup>[Department of Computing, The Hong Kong Polytechnic University](htt
 
 ## Usage
 
-Run it on Google Colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bycloudai/GPEN-colab/blob/main/GPEN.ipynb)
+Run it on Google Colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/KenjieDec/GPEN/blob/main/GPEN.ipynb)
 
 See the original GitHub page to run it locally. (However it cannot be ran on a Windows PC)
 
