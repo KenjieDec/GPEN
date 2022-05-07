@@ -4,6 +4,4 @@ torchvision
 opencv-python
 numpy
 scikit-image
-scipy
 pillow
-tqdm

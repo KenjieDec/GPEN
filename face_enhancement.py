@@ -2,25 +2,24 @@
 @paper: GAN Prior Embedded Network for Blind Face Restoration in the Wild (CVPR2021)
 @author: yangxy (yangtao9009@gmail.com)
 '''
+import os
 import cv2
+import glob
 import time
 import numpy as np
+from PIL import Image
 import __init_paths
-from face_detect.retinaface_detection import RetinaFaceDetection
-from face_parse.face_parsing import FaceParse
+from retinaface.retinaface_detection import RetinaFaceDetection
 from face_model.face_gan import FaceGAN
-from sr_model.real_esrnet import RealESRNet
 from align_faces import warp_and_crop_face, get_reference_facial_points
+from google.colab.patches import cv2_imshow
 
 class FaceEnhancement(object):
-    def __init__(self, base_dir='./', in_size=512, out_size=None, model=None, use_sr=True, sr_model=None, sr_scale=2, channel_multiplier=2, narrow=1, key=None, device='cuda'):
+    def __init__(self, base_dir='./', size=512, out_size=None, model=None, channel_multiplier=2, narrow=1, key=None, device='cuda'):
         self.facedetector = RetinaFaceDetection(base_dir, device)
-        self.facegan = FaceGAN(base_dir, in_size, out_size, model, channel_multiplier, narrow, key, device=device)
-        self.srmodel =  RealESRNet(base_dir, sr_model, sr_scale, device=device)
-        self.faceparser = FaceParse(base_dir, device=device)
-        self.use_sr = use_sr
-        self.in_size = in_size
-        self.out_size = in_size if out_size is None else out_size
+        self.facegan = FaceGAN(base_dir, size, out_size, model, channel_multiplier, narrow, key, device=device)
+        self.size = size
+        self.out_size = size if out_size is None else out_size
         self.threshold = 0.9
 
         # the mask for pasting restored faces back
@@ -39,7 +38,7 @@ class FaceEnhancement(object):
         inner_padding_factor = 0.25
         outer_padding = (0, 0)
         self.reference_5pts = get_reference_facial_points(
-                (self.in_size, self.in_size), inner_padding_factor, outer_padding, default_square)
+                (self.size, self.size), inner_padding_factor, outer_padding, default_square)
 
     def mask_postprocess(self, mask, thres=20):
         mask[:thres, :] = 0; mask[-thres:, :] = 0
@@ -48,22 +47,8 @@ class FaceEnhancement(object):
         mask = cv2.GaussianBlur(mask, (101, 101), 11)
         return mask.astype(np.float32)
 
-    def process(self, img, aligned=False):
+    def process(self, img):
         orig_faces, enhanced_faces = [], []
-        if aligned:
-            ef = self.facegan.process(img)
-            orig_faces.append(img)
-            enhanced_faces.append(ef)
-
-            if self.use_sr:
-                ef = self.srmodel.process(ef)
-
-            return ef, orig_faces, enhanced_faces
-
-        if self.use_sr:
-            img_sr = self.srmodel.process(img)
-            if img_sr is not None:
-                img = cv2.resize(img, img_sr.shape[:2][::-1])
 
         facebs, landms = self.facedetector.detect(img)
         
@@ -77,7 +62,7 @@ class FaceEnhancement(object):
 
             facial5points = np.reshape(facial5points, (2, 5))
 
-            of, tfm_inv = warp_and_crop_face(img, facial5points, reference_pts=self.reference_5pts, crop_size=(self.in_size, self.in_size))
+            of, tfm_inv = warp_and_crop_face(img, facial5points, reference_pts=self.reference_5pts, crop_size=(self.size, self.size))
             
             # enhance the face
             ef = self.facegan.process(of)
@@ -85,16 +70,15 @@ class FaceEnhancement(object):
             orig_faces.append(of)
             enhanced_faces.append(ef)
             
-            #tmp_mask = self.mask
-            tmp_mask = self.mask_postprocess(self.faceparser.process(ef)[0]/255.)
-            tmp_mask = cv2.resize(tmp_mask, (self.in_size, self.in_size))
+            tmp_mask = self.mask
+            tmp_mask = cv2.resize(tmp_mask, (self.size, self.size))
             tmp_mask = cv2.warpAffine(tmp_mask, tfm_inv, (width, height), flags=3)
 
             if min(fh, fw)<100: # gaussian filter for small faces
                 ef = cv2.filter2D(ef, -1, self.kernel)
             
-            if self.in_size!=self.out_size:
-                ef = cv2.resize(ef, (self.in_size, self.in_size))
+            if self.size!=self.out_size:
+                ef = cv2.resize(ef, (self.size, self.size))
             tmp_img = cv2.warpAffine(ef, tfm_inv, (width, height), flags=3)
 
             mask = tmp_mask - full_mask
@@ -102,11 +86,37 @@ class FaceEnhancement(object):
             full_img[np.where(mask>0)] = tmp_img[np.where(mask>0)]
 
         full_mask = full_mask[:, :, np.newaxis]
-        if self.use_sr and img_sr is not None:
-            img = cv2.convertScaleAbs(img_sr*(1-full_mask) + full_img*full_mask)
-        else:
-            img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
+        img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
 
         return img, orig_faces, enhanced_faces
         
+
+if __name__=='__main__':
+    model = {'name':'GPEN-512', 'size':512}
+    
+    indir = 'examples/imgs'
+    outdir = 'examples/outs'
+    os.makedirs(outdir, exist_ok=True)
+
+    faceenhancer = FaceEnhancement(size=model['size'], model=model['name'], channel_multiplier=2)
+
+    files = sorted(glob.glob(os.path.join(indir, '*.*g')))
+    for n, file in enumerate(files[:]):
+        filename = os.path.basename(file)
+        
+        im = cv2.imread(file, cv2.IMREAD_COLOR) # BGR
+        if not isinstance(im, np.ndarray): print(filename, 'error'); continue
+        im = cv2.resize(im, (0,0), fx=2, fy=2)
+        
+        img, orig_faces, enhanced_faces = faceenhancer.process(im)
+        
+        cv2.imwrite(os.path.join(outdir, '.'.join(filename.split('.')[:-1])+'_COMP.jpg'), np.hstack((im, img)))
+        cv2.imwrite(os.path.join(outdir, '.'.join(filename.split('.')[:-1])+'_GPEN.jpg'), img)
+        
+        for m, (ef, of) in enumerate(zip(enhanced_faces, orig_faces)):
+            of = cv2.resize(of, ef.shape[:2])
+            cv2.imwrite(os.path.join(outdir, '.'.join(filename.split('.')[:-1])+'_face%02d'%m+'.jpg'), np.hstack((of, ef)))
+        
+        if n%10==0: 
+            print(n, filename)
         

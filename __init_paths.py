@@ -11,23 +11,8 @@ def add_path(path):
 
 this_dir = osp.dirname(__file__)
 
-path = osp.join(this_dir, 'face_detect')
-add_path(path)
-
-path = osp.join(this_dir, 'face_parse')
+path = osp.join(this_dir, 'retinaface')
 add_path(path)
 
 path = osp.join(this_dir, 'face_model')
-add_path(path)
-
-path = osp.join(this_dir, 'sr_model')
-add_path(path)
-
-path = osp.join(this_dir, 'training')
-add_path(path)
-
-path = osp.join(this_dir, 'training/loss')
-add_path(path)
-
-path = osp.join(this_dir, 'training/data_loader')
 add_path(path)
