@@ -12,12 +12,14 @@ import __init_paths
 from retinaface.retinaface_detection import RetinaFaceDetection
 from face_model.face_gan import FaceGAN
 from align_faces import warp_and_crop_face, get_reference_facial_points
+from sr_model.real_esrnet import RealESRNet
 from google.colab.patches import cv2_imshow
 
 class FaceEnhancement(object):
-    def __init__(self, base_dir='./', size=512, out_size=None, model=None, channel_multiplier=2, narrow=1, key=None, device='cuda'):
+    def __init__(self, base_dir='./', size=512, out_size=None, model=None, use_sr=True, sr_model=None, sr_scale=2, channel_multiplier=2, narrow=1, key=None, device='cuda'):
         self.facedetector = RetinaFaceDetection(base_dir, device)
         self.facegan = FaceGAN(base_dir, size, out_size, model, channel_multiplier, narrow, key, device=device)
+        self.srmodel =  RealESRNet(base_dir, sr_model, sr_scale, device=device)
         self.size = size
         self.out_size = size if out_size is None else out_size
         self.threshold = 0.9
