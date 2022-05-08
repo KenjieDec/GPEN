@@ -12,14 +12,12 @@ import __init_paths
 from retinaface.retinaface_detection import RetinaFaceDetection
 from face_model.face_gan import FaceGAN
 from align_faces import warp_and_crop_face, get_reference_facial_points
-from sr_model.real_esrnet import RealESRNet
 from google.colab.patches import cv2_imshow
 
 class FaceEnhancement(object):
-    def __init__(self, base_dir='./', size=512, out_size=None, model=None, use_sr=True, sr_model=None, sr_scale=2, channel_multiplier=2, narrow=1, key=None, device='cuda'):
+    def __init__(self, base_dir='./', size=512, out_size=None, model=None, channel_multiplier=2, narrow=1, key=None, device='cuda'):
         self.facedetector = RetinaFaceDetection(base_dir, device)
         self.facegan = FaceGAN(base_dir, size, out_size, model, channel_multiplier, narrow, key, device=device)
-        self.srmodel =  RealESRNet(base_dir, sr_model, sr_scale, device=device)
         self.size = size
         self.out_size = size if out_size is None else out_size
         self.threshold = 0.9
@@ -49,8 +47,12 @@ class FaceEnhancement(object):
         mask = cv2.GaussianBlur(mask, (101, 101), 11)
         return mask.astype(np.float32)
 
-    def process(self, img):
+    def process(self, img, aligned=False):
         orig_faces, enhanced_faces = [], []
+        if aligned:
+            ef = self.facegan.process(img)
+            orig_faces.append(img)
+            enhanced_faces.append(ef)
 
         facebs, landms = self.facedetector.detect(img)
         
@@ -89,6 +91,11 @@ class FaceEnhancement(object):
 
         full_mask = full_mask[:, :, np.newaxis]
         img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
+
+        if self.use_sr and img_sr is not None:
+            img = cv2.convertScaleAbs(img_sr*(1-full_mask) + full_img*full_mask)
+        else:
+            img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
 
         return img, orig_faces, enhanced_faces
         
