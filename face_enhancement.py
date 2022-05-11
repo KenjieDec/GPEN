@@ -92,11 +92,6 @@ class FaceEnhancement(object):
         full_mask = full_mask[:, :, np.newaxis]
         img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
 
-        if self.use_sr and img_sr is not None:
-            img = cv2.convertScaleAbs(img_sr*(1-full_mask) + full_img*full_mask)
-        else:
-            img = cv2.convertScaleAbs(img*(1-full_mask) + full_img*full_mask)
-
         return img, orig_faces, enhanced_faces
         
 
